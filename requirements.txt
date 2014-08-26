@@ -1,0 +1,7 @@
+httmock==1.2.2
+requests
+nose
+coverage
+clint
+pager==3.3
+pyaml

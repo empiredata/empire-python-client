@@ -1,0 +1,25 @@
+*.egg-info/
+*.pyc
+*.sw?
+*.log
+*.pid
+ddls.sql
+*.pem
+build/
+dist/
+ENV/
+tmp/
+src/
+
+# dev
+.idea
+.coverage
+cover/
+
+# deploy
+ansible/hosts
+ansible/my_trusted_hosts.yml
+
+# credentials
+secrets/
+empire_service_secrets.yaml
