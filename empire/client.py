@@ -64,9 +64,9 @@ class Empire(object):
         """
         Paginated printing of an SQL query
         """
-        pager.page(self.query(sql))
+        pager.page(self.query(sql, decode=False))
 
-    def query(self, sql):
+    def query(self, sql, decode=True):
         """
         Issue a SQL query, with an iterator over row results
         """
@@ -76,7 +76,10 @@ class Empire(object):
         r = self._do_request('post', url, data=data, stream=True, intact=True)
         try:
             for l in r.iter_lines(chunk_size=self.stream_chunk_size):
-                yield l
+                if decode:
+                    yield json.loads(l)
+                else:
+                    yield l
         finally:
             if hasattr(r, 'connection'):
                 r.connection.close()
