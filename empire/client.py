@@ -5,18 +5,25 @@ Empire command-line client
 
 import sys
 import json
+import urllib
 
 import requests
 import pyaml
 import pager
+import dateutil.parser
 
 class EmpireException(Exception):
     pass
 
 class Empire(object):
-    def __init__(self, appkey=None, api_server='api.empiredata.co', secrets_yaml=None):
+    def __init__(self, appkey=None, enduser=None, api_server='api.empiredata.co', secrets_yaml=None):
+        """
+        appkey is your Empire application key, and is necessary for using the API.
+        enduser is an optional string, identifying the enduser. It is necessary when doing any operation on a view.
+        """
 #    def __init__(self, appkey=None, api_server='localhost:9000', secrets_yaml=None):
         self.appkey = appkey
+        self.enduser = enduser
         self.api_server = api_server
         if self.api_server.startswith("localhost"):
             self.base_url = "http://%s/empire/" % self.api_server
@@ -93,32 +100,54 @@ class Empire(object):
         data = json.dumps(row)
         return self._do_request('post', url, data=data)
 
-    def create_view(self, name, sql):
+    def materialize_view(self, name, sql):
         """
-        Materialize a SQL query as a view
+        Materialize a SQL query as a view. This creates or updates a view.
         """
-        url = self.base_url + "view"
-        data = json.dumps({"name": name, "query": sql})
-
-        return self._do_request('post', url, data=data)
-
-    def refresh_view(self, name):
-        """
-        Refresh a materialized view of a SQL query
-        """
-        url = self.base_url + "view"
-        data = json.dumps({"name": name})
-
+        if not self.enduser:
+            raise EmpireException("Cannot use materialized view within a session initiated without an enduser")
+        url = self.base_url + "view/%s" % name
+        data = json.dumps({"query": sql})
         return self._do_request('put', url, data=data)
 
     def drop_view(self, name):
         """
         Delete a materialized view of SQL query
         """
-        url = self.base_url + "view"
-        data = json.dumps({"name": name})
+        if not self.enduser:
+            raise EmpireException("Cannot use materialized view within a session initiated without an enduser")
+        url = self.base_url + "view/%s" % name
+        return self._do_request('delete', url)
 
-        return self._do_request('delete', url, data=data)
+    def view_ready(self, name):
+        """
+        Boolean check if a materialized view is ready for querying.
+        @note The user is expected to check view_ready before calling query()
+        """
+        r = self._view_status(name)
+        if r["viewStatus"] == "ready":
+            return True
+        elif r["viewStatus"] == "pending":
+            return False
+        else:
+            raise EmpireException("Unknown view status: %s" % r["viewStatus"])
+
+    def view_materialized_at(self, name):
+        """
+        Datetime that this view was materialized at. None if the
+        materialization is currently pending.
+        """
+        r = self._view_status(name)
+        if "materializedAt" in r:
+            return dateutil.parser.parse(r["materializedAt"])
+        else:
+            return None
+
+    def _view_status(self, name):
+        if not self.enduser:
+            raise EmpireException("Cannot use materialized view within a session initiated without an enduser")
+        url = self.base_url + "view/%s/status" % name
+        return self._do_request('get', url)
 
     def walkthrough(self):
         if self.service_secrets:
@@ -155,7 +184,12 @@ class Empire(object):
 
     def _ensure_session(self):
         if not self.sessionkey:
-            url = self.base_url + 'session/create'
+            if self.enduser:
+                # Manually construct the query parameter, because POST will
+                # put it in the body by default
+                url = self.base_url + 'session/create?enduser=%s' % urllib.quote(self.enduser)
+            else:
+                url = self.base_url + 'session/create'
             headers = {'Authorization': 'Empire appkey="%s"' % self.appkey}
             r = self._do_request_help('post', url, headers=headers)
             self.sessionkey = r["sessionkey"]
@@ -163,22 +197,24 @@ class Empire(object):
 
     def _do_request_help(self, *args, **kwargs):
         kwargs.setdefault('headers', {})
+
         # For POST requests with data, specify that they are JSON
         if 'data' in kwargs:
-            assert 'content-type' not in kwargs['headers']
-            kwargs['headers']['content-type'] = 'application/json'
+            kwargs['headers'].setdefault('content-type', 'application/json')
+
         kwargs.setdefault('stream', True)
 
         intact = kwargs.pop('intact', False)
 
         r = requests.request(*args, **kwargs)
-        if intact: return r
+        if intact:
+            return r
 
         try:
-            json = r.json()
-            if json["status"] != "OK":
-                raise EmpireException(json["error"])
-            return json
+            result = r.json()
+            if result["status"] != "OK":
+                raise EmpireException(result["error"])
+            return result
         except ValueError, e:
             raise EmpireException(repr(e) + " " + r.text)
         finally:

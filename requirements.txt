@@ -5,3 +5,4 @@ coverage
 clint
 pager==3.3
 pyaml
+python-dateutil

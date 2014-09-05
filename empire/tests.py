@@ -20,7 +20,7 @@ class EmpireTest(unittest.TestCase):
     json_headers = {'content-type': 'application/json'}
 
     def setUp(self):
-        self.empire = Empire(appkey="MOCK_USER", api_server='api.empire.co')
+        self.empire = Empire(appkey="MOCK_APPKEY", enduser="MOCK_ENDUSER", api_server='api.empire.co')
         self.services = {}
 
     def mock_response_200(self, request, data):
@@ -110,49 +110,51 @@ class EmpireTest(unittest.TestCase):
 
     @httmock.urlmatch(netloc='api.empire.co', path='/empire/query')
     def query_mock(self, url, request):
-        return self.mock_response_200(request, 'QUERY\nRESULT')
+        return self.mock_response_200(request, json.dumps({'col1': 'val1'}) + '\n' + json.dumps({'col2': 'val2'}))
 
     def test_query(self):
         with httmock.HTTMock(self.session_create_mock):
             with httmock.HTTMock(self.query_mock):
-                query_result = list(self.empire.query('SELECT * FROM salesforce_account'))
+                query_result = list(self.empire.query('SELECT * FROM salesforce.account'))
 
-        self.assertEqual(query_result, ['QUERY', 'RESULT'])
+        self.assertEqual(query_result, [{'col1': 'val1'}, {'col2': 'val2'}])
 
-    @httmock.urlmatch(netloc='api.empire.co', path='/empire/view')
-    def view_mock(self, url, request):
-        if request.method == 'POST':
-            if json.loads(request.body) == {'name': 'view', 'query': 'SELECT QUERY'}:
-                return self.mock_response_200(request, {'status': 'OK'})
-
+    @httmock.urlmatch(netloc='api.empire.co', path='/empire/view/viewName')
+    def view_create_mock(self, url, request):
         if request.method == 'PUT':
-            if json.loads(request.body) == {'name': 'view'}:
-                return self.mock_response_200(request, {'status': 'OK'})
-
-        if request.method == 'DELETE':
-            if json.loads(request.body) == {'name': 'view'}:
+            if json.loads(request.body) == {'query': 'SELECT QUERY'}:
+                self.view_created = True
                 return self.mock_response_200(request, {'status': 'OK'})
 
         return self.mock_response_500(request, "Something is broken")
 
-    def test_create_view(self):
+    def test_materialize_view(self):
+        self.view_created = False
+        self.assertEqual(self.view_created, False)
+
         with httmock.HTTMock(self.session_create_mock):
-            with httmock.HTTMock(self.view_mock):
-                r = self.empire.create_view(name='view', sql='SELECT QUERY')
+            with httmock.HTTMock(self.view_create_mock):
+                r = self.empire.materialize_view(name='viewName', sql='SELECT QUERY')
 
         self.assertEqual(r, {'status': 'OK'})
+        self.assertEqual(self.view_created, True)
 
-    def test_refresh_view(self):
-        with httmock.HTTMock(self.session_create_mock):
-            with httmock.HTTMock(self.view_mock):
-                r = self.empire.refresh_view(name='view')
+    @httmock.urlmatch(netloc='api.empire.co', path='/empire/view/viewName')
+    def view_delete_mock(self, url, request):
+        if request.method == 'DELETE':
+            self.view_deleted = True
+            return self.mock_response_200(request, {'status': 'OK'})
 
-        self.assertEqual(r, {'status': 'OK'})
+        return self.mock_response_500(request, "Something is broken")
 
     def test_drop_view(self):
+        self.view_deleted = False
+        self.assertEqual(self.view_deleted, False)
+
         with httmock.HTTMock(self.session_create_mock):
-            with httmock.HTTMock(self.view_mock):
-                r = self.empire.drop_view(name='view')
+            with httmock.HTTMock(self.view_delete_mock):
+                r = self.empire.drop_view(name='viewName')
 
         self.assertEqual(r, {'status': 'OK'})
+        self.assertEqual(self.view_deleted, True)
 

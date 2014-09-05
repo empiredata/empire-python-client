@@ -10,7 +10,9 @@ pip install -r requirements.txt
 Usage
 =====
 
-See `example.py`
+`./example.py YOUR_APP_KEY empire_service_secrets.yaml`
+
+where `empire_service_secrets.yaml` was downloaded from [https://login.empiredata.co](https://login.empiredata.co)
 
 Testing
 =======
