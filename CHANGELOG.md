@@ -1,3 +1,14 @@
+## 0.3.1
+
+Breaking changes:
+
+  - PyPi package is now called `empire-client`. The module is still
+  called `empire`.
+
+Features:
+
+  - `empire.walkthrough` now demonstrates materialized views.
+
 ## 0.3
 
 Breaking changes:

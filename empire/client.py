@@ -6,6 +6,7 @@ Empire command-line client
 import sys
 import json
 import urllib
+import time
 
 import requests
 import pyaml
@@ -150,6 +151,8 @@ class Empire(object):
         return self._do_request('get', url)
 
     def walkthrough(self):
+        lastservice = None
+        lasttable = None
         if self.service_secrets:
             for s in self.service_secrets:
                 try:
@@ -157,20 +160,35 @@ class Empire(object):
                     self.connect(s)
             
                     for t in self.describe(s)["service"]["tables"]:
+                        t = t["table"]
                         # These mailchimp tables can only be queried
                         # when filtering by a particular list.
                         if s == "mailchimp":
                             skip_mc_tables = ["list_member", "campaign", "campaign_sent_to", "campaign_opened"]
-                            if t["table"] in skip_mc_tables:
+                            if t in skip_mc_tables:
                                 continue
 
-                        sql = "select * from %s.%s limit 10" % (s, t["table"])
+                        sql = "SELECT * FROM %s.%s LIMIT 5" % (s, t)
                         # We print the repr so that strings are correctly quoted
                         print "empire.query(%s)" % repr(str(sql))
-                        for i in self.query(sql):
-                            print i
+                        for row in self.query(sql):
+                            print "    %s..." % repr(row)[:60]
+                        lastservice, lasttable = s, t
                 except Exception, e:
                     print "Error in service", s, e
+            if self.enduser:
+                print 'empire.materialize_view("view_name", "SELECT * FROM %s.%s LIMIT 5")' % (lastservice, lasttable)
+                self.materialize_view("view_name", "SELECT * FROM %s.%s LIMIT 5" % (lastservice, lasttable))
+                print 'while not empire.view_ready("view_name"):\n    time.sleep(0.1)'
+                while not self.view_ready("view_name"):
+                    time.sleep(0.01)
+                print 'empire.query("SELECT * FROM view_name")'
+                for row in self.query("SELECT * FROM view_name"):
+                    print "    %s..." % repr(row)[:60]
+                print 'empire.drop_view("view_name")'
+                self.drop_view("view_name")
+            else:
+                print "Please specify an enduser parameter when instantiating the client, so that you can try materialized views"
         else:
             print "Please connect some services in https://login.empiredata.co, and download the new yaml file"
 

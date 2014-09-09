@@ -1,22 +1,14 @@
-Installation
-============
+Empire API Python client
+========================
 
-```sh
-virtualenv ./ENV
-source ./ENV/bin/activate
-pip install -r requirements.txt
-```
+[Empire](http://empiredata.co) is an API for accessing enterprise
+SaaS services such as Salesforce, Zendesk, Google Apps, etc. It
+provides a uniform, database-like interface to every service that
+it supports. Empire makes it easy to integrate data from multiple
+enterprise services into your own enterprise app.
 
-Usage
-=====
+Installation and Usage
+----------------------
 
-`./example.py YOUR_APP_KEY empire_service_secrets.yaml`
-
-where `empire_service_secrets.yaml` was downloaded from [https://login.empiredata.co](https://login.empiredata.co)
-
-Testing
-=======
-
-```sh
-nosetests --with-coverage --cover-package=empire empire.tests
-```
+Please see the [Python client
+documentation](http://empiredata.co/doc/python/).
