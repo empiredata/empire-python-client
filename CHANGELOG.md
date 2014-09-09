@@ -1,3 +1,14 @@
+## 0.3.2
+
+Fix:
+
+  - `empire.walkthrough` now demonstrates materialized views. (It
+  wasn't merged into 0.3.1)
+
+Packaging:
+
+  - Improved packaging for PyPi
+
 ## 0.3.1
 
 Breaking changes:

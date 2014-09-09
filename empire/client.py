@@ -151,46 +151,65 @@ class Empire(object):
         return self._do_request('get', url)
 
     def walkthrough(self):
-        lastservice = None
-        lasttable = None
-        if self.service_secrets:
-            for s in self.service_secrets:
-                try:
-                    print "empire.connect(%s)" % repr(s)
-                    self.connect(s)
-            
-                    for t in self.describe(s)["service"]["tables"]:
-                        t = t["table"]
-                        # These mailchimp tables can only be queried
-                        # when filtering by a particular list.
-                        if s == "mailchimp":
-                            skip_mc_tables = ["list_member", "campaign", "campaign_sent_to", "campaign_opened"]
-                            if t in skip_mc_tables:
-                                continue
-
-                        sql = "SELECT * FROM %s.%s LIMIT 5" % (s, t)
-                        # We print the repr so that strings are correctly quoted
-                        print "empire.query(%s)" % repr(str(sql))
-                        for row in self.query(sql):
-                            print "    %s..." % repr(row)[:60]
-                        lastservice, lasttable = s, t
-                except Exception, e:
-                    print "Error in service", s, e
-            if self.enduser:
-                print 'empire.materialize_view("view_name", "SELECT * FROM %s.%s LIMIT 5")' % (lastservice, lasttable)
-                self.materialize_view("view_name", "SELECT * FROM %s.%s LIMIT 5" % (lastservice, lasttable))
-                print 'while not empire.view_ready("view_name"):\n    time.sleep(0.1)'
-                while not self.view_ready("view_name"):
-                    time.sleep(0.01)
-                print 'empire.query("SELECT * FROM view_name")'
-                for row in self.query("SELECT * FROM view_name"):
-                    print "    %s..." % repr(row)[:60]
-                print 'empire.drop_view("view_name")'
-                self.drop_view("view_name")
-            else:
-                print "Please specify an enduser parameter when instantiating the client, so that you can try materialized views"
-        else:
+        self.lastservice = None
+        self.lasttable = None
+        if not self.service_secrets:
             print "Please connect some services in https://login.empiredata.co, and download the new yaml file"
+            return
+
+        for service in self.service_secrets:
+            self._walkthrough_service(service)
+
+        self._walkthrough_materialized_view(self.lastservice, self.lasttable)
+
+    def _walkthrough_service(self, service):
+        try:
+            print "empire.connect(%s)" % repr(service)
+            self.connect(service)
+    
+            for table_data in self.describe(service)["service"]["tables"]:
+                table = table_data["table"]
+                self._walkthrough_table(service, table)
+        except Exception, e:
+            print "Error in service", service, e
+
+    def _walkthrough_table(self, service, table):
+        # These mailchimp tables can only be queried
+        # when filtering by a particular list.
+        if service == "mailchimp":
+            skip_mc_tables = ["list_member", "campaign", "campaign_sent_to", "campaign_opened"]
+            if table in skip_mc_tables:
+                return
+
+        sql = "SELECT * FROM %s.%s LIMIT 5" % (service, table)
+        # We print the repr so that strings are correctly quoted
+        print "empire.query(%s)" % repr(str(sql))
+        for row in self.query(sql):
+            self._walkthrough_print_row(row)
+        self.lastservice, self.lasttable = service, table
+
+    def _walkthrough_materialized_view(self, lastservice, lasttable):
+        if not self.enduser:
+            print "Please specify an enduser parameter when instantiating the client, so that you can try materialized views"
+            return
+
+        print 'empire.materialize_view("view_name", "SELECT * FROM %s.%s LIMIT 5")' % (lastservice, lasttable)
+        self.materialize_view("view_name", "SELECT * FROM %s.%s LIMIT 5" % (lastservice, lasttable))
+        print 'while not empire.view_ready("view_name"):\n    time.sleep(0.01)'
+        while not self.view_ready("view_name"):
+            time.sleep(0.01)
+        print 'empire.query("SELECT * FROM view_name")'
+        for row in self.query("SELECT * FROM view_name"):
+            self._walkthrough_print_row(row)
+        print 'empire.drop_view("view_name")'
+        self.drop_view("view_name")
+
+    def _walkthrough_print_row(self, row, max_length=70):
+        row = repr(row)
+        fragment = row[0:max_length]
+        if len(fragment) == max_length:
+            fragment = fragment + "..."
+        print "    %s" % fragment
 
     def _do_request(self, *args, **kwargs):
         self._ensure_session()
