@@ -1,6 +1,8 @@
 #!/usr/bin/python
 """
-Empire command-line client
+Python client for Empire API
+
+See: http://empiredata.co/doc/python/
 """
 
 from client import Empire

@@ -1,3 +1,9 @@
+## 0.3.3
+
+Documentation:
+
+  - Changed the help text
+
 ## 0.3.2
 
 Fix:
