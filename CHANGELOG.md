@@ -1,3 +1,9 @@
+## 0.3.4
+
+Breaking changes:
+
+  - PyPi package is now called `empire`.
+
 ## 0.3.3
 
 Documentation:

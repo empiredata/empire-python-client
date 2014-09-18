@@ -1,8 +1,8 @@
 from distutils.core import setup
 
 setup(
-    name='empire-client',
-    version='0.3.3',
+    name='empire',
+    version='0.3.4',
     author='UPSHOT Data, Inc.',
     author_email='hello@empiredata.co',
     url='http://empiredata.co',
